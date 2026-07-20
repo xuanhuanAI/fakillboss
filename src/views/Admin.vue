@@ -216,7 +216,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useAppStore } from '@/stores/app';
-import { getCOSConfig, initCOS } from '@/utils/cos';
+import { getCOSConfig, initCOS, loadSavedConfig } from "@/utils/cos";
 import { getAllUsers, deleteUser as deleteUserApi } from '@/utils/auth';
 
 const appStore = useAppStore();
@@ -225,12 +225,13 @@ const contentFilter = ref('all');
 const cosStatus = ref('');
 const settingsStatus = ref('');
 const users = ref([]);
-
+const savedConfig = loadSavedConfig();
 const cosConfig = ref({
-  SecretId: '',
-  SecretKey: '',
-  Bucket: getCOSConfig().Bucket,
-  Region: getCOSConfig().Region,
+const cosConfig = ref({
+    SecretId: savedConfig?.SecretId || '',
+  SecretKey: savedConfig?.SecretKey || '',
+  Bucket: savedConfig?.Bucket || getCOSConfig().Bucket,
+  Region: savedConfig?.Region || getCOSConfig().Region,
 });
 
 const typeLabels = { good: '推荐', medium: '一般', bad: '避雷' };
