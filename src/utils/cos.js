@@ -44,7 +44,7 @@ export function getCOSConfig() {
 
 function cosReady() {
   const cos = getCOS();
-  if (!cos) throw new Error(\'COS \u672a\u521d\u59cb\u5316\uff0c\u8bf7\u5728\u7ba1\u7406\u540e\u53f0\u914d\u7f6e\u5bc6\u94a5\');
+  if (!cos) throw new Error('COS 未初始化，请在管理后台配置密钥');
   return cos;
 }
 
@@ -58,7 +58,7 @@ export function getCOSData(key) {
         Key: key,
       }, (err, data) => {
         if (err) {
-          if (err.code === \'NoSuchKey\' || err.statusCode === 404) resolve(null);
+          if (err.code === 'NoSuchKey' || err.statusCode === 404) resolve(null);
           else reject(err);
         } else {
           try { resolve(JSON.parse(data.Body)); }
@@ -78,7 +78,7 @@ export function putCOSData(key, data) {
         Region: COS_CONFIG.Region,
         Key: key,
         Body: JSON.stringify(data, null, 2),
-        ContentType: \'application/json\',
+        ContentType: 'application/json',
       }, (err, data) => {
         if (err) reject(err);
         else resolve(data);

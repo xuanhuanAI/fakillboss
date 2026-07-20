@@ -227,7 +227,6 @@ const settingsStatus = ref('');
 const users = ref([]);
 const savedConfig = loadSavedConfig();
 const cosConfig = ref({
-const cosConfig = ref({
     SecretId: savedConfig?.SecretId || '',
   SecretKey: savedConfig?.SecretKey || '',
   Bucket: savedConfig?.Bucket || getCOSConfig().Bucket,
