@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div>
     <div class="page-header">
       <h1 class="page-title"><span>鈿欙笍</span> 绠＄悊鍚庡彴</h1>
