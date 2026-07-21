@@ -119,3 +119,5 @@ export function uploadFile(key, file) {
     } catch (e) { reject(e); }
   });
 }
+
+export async function initCOSSaved() { const saved = loadSavedConfig(); if (saved && saved.SecretId && saved.SecretKey) { await initCOS(saved); return true; } return false; }

@@ -1,5 +1,5 @@
-﻿import { defineStore } from "pinia";
-import { getCOSData, putCOSData } from "@/utils/cos";
+import { defineStore } from "pinia";
+import { getCOSData, putCOSData, initCOSSaved } from "@/utils/cos";
 
 export const useAppStore = defineStore("app", {
   state: () => ({
@@ -92,6 +92,7 @@ export const useAppStore = defineStore("app", {
       await this.saveComments();
     },
     async initApp() {
+      await initCOSSaved();
       await this.fetchSiteConfig();
       await Promise.all([
         this.fetchJobs("good"),
