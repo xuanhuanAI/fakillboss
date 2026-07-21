@@ -6,7 +6,7 @@ let COS_CONFIG = {
 };
 
 let cosInstance = null;
-let publicConfigPromise = null; // 缓存 cos-config.json 的请求
+let publicConfigPromise = null;
 
 const STORAGE_KEY = "cos_config";
 
@@ -38,7 +38,6 @@ function fetchPublicConfig() {
       return config;
     })
     .catch(() => {
-      // 如果 cos-config.json 不存在或无效，尝试从 localStorage 读取
       const saved = loadSavedConfig();
       if (saved && saved.Bucket) {
         COS_CONFIG.Bucket = saved.Bucket;
@@ -52,6 +51,10 @@ function fetchPublicConfig() {
 
 export function getCOS() {
   return cosInstance;
+}
+
+export function isCOSReady() {
+  return cosInstance !== null;
 }
 
 export async function initCOS(config) {
@@ -70,7 +73,6 @@ export function getCOSConfig() {
   return COS_CONFIG;
 }
 
-/** COS 公开读取的基础 URL */
 function getCOSPublicBaseURL() {
   return `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/`;
 }
@@ -78,50 +80,39 @@ function getCOSPublicBaseURL() {
 /**
  * 读取 COS 数据 - 支持两种模式：
  * 1. SDK 模式（管理员已配置密钥时使用）
- * 2. 匿名 HTTP GET 模式（普通访客使用，需存储桶开启公有读）
+ * 2. 匿名 HTTP GET 模式（普通访客使用，需公开读权限）
  */
 export function getCOSData(key) {
   return new Promise((resolve, reject) => {
-    // 模式1：SDK 已初始化，用 SDK 读取
     if (cosInstance) {
+      // SDK模式
       cosInstance.getObject(
-        {
-          Bucket: COS_CONFIG.Bucket,
-          Region: COS_CONFIG.Region,
-          Key: key,
-        },
+        { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key },
         (err, data) => {
           if (err) {
-            if (err.code === "NoSuchKey" || err.statusCode === 404)
-              resolve(null);
+            if (err.code === "NoSuchKey" || err.statusCode === 404) resolve(null);
             else reject(err);
           } else {
-            try {
-              resolve(JSON.parse(data.Body));
-            } catch {
-              resolve(data.Body);
-            }
+            try { resolve(JSON.parse(data.Body)); }
+            catch { resolve(data.Body); }
           }
         }
       );
       return;
     }
-
-    // 模式2：SDK 未初始化，先用公共配置文件获取桶信息
+    // 匿名模式 - 先获取桶配置
     fetchPublicConfig()
       .then(() => {
         if (!COS_CONFIG.Bucket) {
-          reject(new Error("COS 未配置，请先在管理后台配置或创建 cos-config.json"));
-          return;
+          reject(new Error("COS 未配置"));
+          return null;
         }
-        const url = getCOSPublicBaseURL() + key;
-        return fetch(url);
+        return fetch(getCOSPublicBaseURL() + key);
       })
       .then((res) => {
-        if (!res) return;
+        if (!res) return null;
         if (res.status === 404) return null;
-        if (!res.ok)
-          throw new Error("COS 读取失败: HTTP " + res.status);
+        if (!res.ok) throw new Error("读取失败: HTTP " + res.status);
         return res.json();
       })
       .then((data) => resolve(data))
@@ -152,19 +143,14 @@ export function putCOSData(key, data) {
   });
 }
 
-/** 删除 COS 数据 - 必须使用 SDK */
 export function deleteCOSData(key) {
   return new Promise((resolve, reject) => {
     if (!cosInstance) {
-      reject(new Error("COS 未初始化，请在管理后台配置密钥"));
+      reject(new Error("COS 未初始化"));
       return;
     }
     cosInstance.deleteObject(
-      {
-        Bucket: COS_CONFIG.Bucket,
-        Region: COS_CONFIG.Region,
-        Key: key,
-      },
+      { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key },
       (err, data) => {
         if (err) reject(err);
         else resolve(data);
@@ -173,20 +159,14 @@ export function deleteCOSData(key) {
   });
 }
 
-/** 上传文件到 COS - 必须使用 SDK */
 export function uploadFile(key, file) {
   return new Promise((resolve, reject) => {
     if (!cosInstance) {
-      reject(new Error("COS 未初始化，请在管理后台配置密钥"));
+      reject(new Error("COS 未初始化"));
       return;
     }
     cosInstance.putObject(
-      {
-        Bucket: COS_CONFIG.Bucket,
-        Region: COS_CONFIG.Region,
-        Key: key,
-        Body: file,
-      },
+      { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key, Body: file },
       (err, data) => {
         if (err) reject(err);
         else resolve(data);
@@ -202,7 +182,6 @@ export async function initCOSSaved() {
     await initCOS(saved);
     return true;
   }
-  // 即使 SDK 没初始化，也尝试加载公共配置
   await fetchPublicConfig();
   return false;
 }
