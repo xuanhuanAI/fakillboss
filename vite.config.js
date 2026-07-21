@@ -9,5 +9,5 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)), 
     }, 
   }, 
-  base: "/pinglunwangzhan-1229-github.io/", 
+  base: "/fakillboss/", 
 }); 

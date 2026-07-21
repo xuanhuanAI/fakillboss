@@ -45,7 +45,7 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHashHistory("/job-review-site/"),
+  history: createWebHashHistory("/fakillboss/"),
   routes,
 });
 
