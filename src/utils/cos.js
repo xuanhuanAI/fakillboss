@@ -1,7 +1,8 @@
-﻿/* COS配置工具 */
-let COS_CONFIG = { Bucket: "", Region: "" };
+﻿/* COS配置工具 - 完整版：匿名读 + 公共SDK写 */
+let COS_CONFIG = { Bucket: "qwertyuiop-1454067625", Region: "ap-guangzhou" };
 let cosInstance = null;
-let publicConfigPromise = null;
+let writeInstance = null;
+let publicConfigLoaded = false;
 
 const STORAGE_KEY = "cos_config";
 
@@ -13,30 +14,38 @@ export function loadSavedConfig() {
   return null;
 }
 
-function fetchPublicConfig() {
-  if (publicConfigPromise) return publicConfigPromise;
-  publicConfigPromise = fetch("./cos-config.json")
-    .then((res) => {
-      if (!res.ok) throw new Error("找不到公共配置文件");
-      return res.json();
-    })
-    .then((config) => {
-      if (config.Bucket && config.Bucket !== "your-bucket-1250000000") {
-        COS_CONFIG.Bucket = config.Bucket;
-        COS_CONFIG.Region = config.Region || COS_CONFIG.Region;
+async function loadPublicConfig() {
+  if (publicConfigLoaded) return;
+
+  // 1. 从 cos-config.json 获取 Bucket/Region
+  try {
+    const res = await fetch("./cos-config.json");
+    if (res.ok) {
+      const cfg = await res.json();
+      if (cfg.Bucket && cfg.Bucket !== "your-bucket-1250000000") {
+        COS_CONFIG.Bucket = cfg.Bucket;
+        COS_CONFIG.Region = cfg.Region || COS_CONFIG.Region;
       }
-      return config;
-    })
-    .catch(() => {
-      const saved = loadSavedConfig();
-      if (saved && saved.Bucket) {
-        COS_CONFIG.Bucket = saved.Bucket;
-        COS_CONFIG.Region = saved.Region || COS_CONFIG.Region;
-        return saved;
+    }
+  } catch (e) {}
+
+  // 2. 从 COS 读取写入凭据（管理员之前保存的 config/write-creds.json）
+  try {
+    const url = `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/config/write-creds.json`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const creds = await res.json();
+      if (creds.SecretId && creds.SecretKey) {
+        const COSSDK = await import("cos-js-sdk-v5");
+        writeInstance = new COSSDK.default({
+          SecretId: creds.SecretId,
+          SecretKey: creds.SecretKey,
+        });
       }
-      return null;
-    });
-  return publicConfigPromise;
+    }
+  } catch (e) {}
+
+  publicConfigLoaded = true;
 }
 
 export function getCOS() { return cosInstance; }
@@ -51,19 +60,38 @@ export async function initCOS(config) {
   COS_CONFIG.Bucket = config.Bucket || COS_CONFIG.Bucket;
   COS_CONFIG.Region = config.Region || COS_CONFIG.Region;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+
+  // ★ 把凭据写入 COS，供所有用户读取后用 SDK 写入
+  try {
+    await cosInstance.putObject({
+      Bucket: COS_CONFIG.Bucket,
+      Region: COS_CONFIG.Region,
+      Key: "config/write-creds.json",
+      Body: JSON.stringify({ SecretId: config.SecretId, SecretKey: config.SecretKey }),
+      ContentType: "application/json",
+    });
+    console.log("写入凭据已同步到COS");
+  } catch (e) {
+    console.warn("写入凭据同步失败:", e.message);
+  }
+
   return cosInstance;
 }
 
 export function getCOSConfig() { return COS_CONFIG; }
 
-function getCOSPublicBaseURL() {
-  return `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/`;
+function getWriter() {
+  if (cosInstance) return cosInstance;
+  return writeInstance;
 }
 
 /** 读取 COS 数据 */
-export function getCOSData(key) {
-  return new Promise((resolve, reject) => {
-    if (cosInstance) {
+export async function getCOSData(key) {
+  if (!publicConfigLoaded) await loadPublicConfig();
+
+  // SDK 模式（管理员）
+  if (cosInstance) {
+    return new Promise((resolve, reject) => {
       cosInstance.getObject(
         { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key },
         (err, data) => {
@@ -76,70 +104,40 @@ export function getCOSData(key) {
           }
         }
       );
-      return;
-    }
-    fetchPublicConfig()
-      .then(() => {
-        if (!COS_CONFIG.Bucket) { reject(new Error("COS 未配置")); return null; }
-        return fetch(getCOSPublicBaseURL() + key);
-      })
-      .then((res) => {
-        if (!res) return null;
-        if (res.status === 404) return null;
-        if (!res.ok) throw new Error("读取失败: HTTP " + res.status);
-        return res.json();
-      })
-      .then((data) => resolve(data))
-      .catch((err) => reject(err));
-  });
-}
-
-/**
- * 写入 COS 数据 - 三级机制：
- * 1. SDK 模式（管理员）
- * 2. 匿名 HTTP PUT（存储桶需开启"公有读写"）
- * 3. 失败返回错误（调用方自己处理暂存）
- */
-export async function putCOSData(key, data) {
-  // 先确保桶配置已加载
-  if (!COS_CONFIG.Bucket) {
-    await fetchPublicConfig();
-  }
-  if (!COS_CONFIG.Bucket) {
-    throw new Error("COS 未配置");
-  }
-
-  // 一级：SDK 模式
-  if (cosInstance) {
-    return new Promise((resolve, reject) => {
-      cosInstance.putObject(
-        {
-          Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region,
-          Key: key, Body: JSON.stringify(data), ContentType: "application/json",
-        },
-        (err, d) => { if (err) reject(err); else resolve(d); }
-      );
     });
   }
 
-  // 二级：匿名 HTTP PUT（需存储桶开启"公有读写"，无需子账号）
-  const url = getCOSPublicBaseURL() + key;
-  const res = await fetch(url, {
-    method: "PUT",
-    body: JSON.stringify(data),
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error("写入失败: HTTP " + res.status + "（请将存储桶权限改为[公有读写]）");
-  }
-  return res;
+  // 匿名 GET 模式
+  const url = `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/${key}`;
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("读取失败: HTTP " + res.status);
+  return await res.json();
 }
 
-/** 删除 COS 数据 - 必须用 SDK */
+/** 写入 COS 数据 */
+export function putCOSData(key, data) {
+  return new Promise((resolve, reject) => {
+    const writer = getWriter();
+    if (!writer) {
+      reject(new Error("暂无写入权限"));
+      return;
+    }
+    writer.putObject(
+      {
+        Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region,
+        Key: key, Body: JSON.stringify(data), ContentType: "application/json",
+      },
+      (err, d) => { if (err) reject(err); else resolve(d); }
+    );
+  });
+}
+
 export function deleteCOSData(key) {
   return new Promise((resolve, reject) => {
-    if (!cosInstance) { reject(new Error("COS 未初始化")); return; }
-    cosInstance.deleteObject(
+    const writer = getWriter();
+    if (!writer) { reject(new Error("暂无写入权限")); return; }
+    writer.deleteObject(
       { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key },
       (err, d) => { if (err) reject(err); else resolve(d); }
     );
@@ -148,21 +146,21 @@ export function deleteCOSData(key) {
 
 export function uploadFile(key, file) {
   return new Promise((resolve, reject) => {
-    if (!cosInstance) { reject(new Error("COS 未初始化")); return; }
-    cosInstance.putObject(
+    const writer = getWriter();
+    if (!writer) { reject(new Error("暂无写入权限")); return; }
+    writer.putObject(
       { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key, Body: file },
       (err, d) => { if (err) reject(err); else resolve(d); }
     );
   });
 }
 
-/** 尝试从 localStorage 加载配置并初始化 COS */
 export async function initCOSSaved() {
+  await loadPublicConfig();
   const saved = loadSavedConfig();
   if (saved && saved.SecretId && saved.SecretKey) {
     await initCOS(saved);
     return true;
   }
-  await fetchPublicConfig();
   return false;
 }
