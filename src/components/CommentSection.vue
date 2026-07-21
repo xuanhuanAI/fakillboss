@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="comment-section">
     <div class="comment-section-title">
-      <span>💬</span> 评论 ({{ comments.length }})
+      <span>💬</span> 评论 ({{ filteredComments.length }})
     </div>
 
     <div v-if="appStore.isLoggedIn" style="margin-bottom: 16px;">
@@ -11,9 +11,11 @@
         placeholder="写下你的评论..."
         style="min-height: 60px; margin-bottom: 8px;"
       ></textarea>
-      <button class="btn btn-primary btn-sm" @click="submitComment" :disabled="!newComment.trim()">
-        发表评论
+      <div v-if="commentError" style="color:var(--danger);font-size:13px;margin-bottom:8px">{{ commentError }}</div>
+      <button class="btn btn-primary btn-sm" @click="submitComment" :disabled="!newComment.trim() || submitting">
+        {{ submitting ? '发表中...' : '发表评论' }}
       </button>
+      <span v-if="commentSuccess" style="margin-left:8px;color:var(--success);font-size:13px">✅ 评论已发布</span>
     </div>
     <div v-else style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 8px; text-align: center; font-size: 14px; color: var(--text-secondary);">
       <router-link to="/login" style="color: var(--primary);">登录</router-link> 后即可发表评论
@@ -34,7 +36,7 @@
       </div>
       <div class="comment-content">{{ comment.content }}</div>
       <div v-if="canDelete(comment)" class="comment-actions">
-        <button class="btn btn-danger btn-sm" @click="deleteComment(comment.id)">删除</button>
+        <button class="btn btn-danger btn-sm" @click="handleDeleteComment(comment.id)">删除</button>
       </div>
     </div>
   </div>
@@ -50,6 +52,9 @@ const props = defineProps({
 
 const appStore = useAppStore();
 const newComment = ref('');
+const submitting = ref(false);
+const commentError = ref('');
+const commentSuccess = ref(false);
 
 const comments = computed(() => {
   return appStore.comments.filter((c) => c.jobId === props.jobId);
@@ -66,20 +71,34 @@ function canDelete(comment) {
 }
 
 async function submitComment() {
-  if (!newComment.value.trim()) return;
-  await appStore.addComment({
-    jobId: props.jobId,
-    author: appStore.currentUser.nickname || appStore.currentUser.username,
-    authorId: appStore.currentUser.username,
-    content: newComment.value.trim(),
-    isAdmin: appStore.isAdmin,
-  });
-  newComment.value = '';
+  if (!newComment.value.trim() || submitting.value) return;
+  submitting.value = true;
+  commentError.value = '';
+  commentSuccess.value = false;
+  try {
+    await appStore.addComment({
+      jobId: props.jobId,
+      author: appStore.currentUser.nickname || appStore.currentUser.username,
+      authorId: appStore.currentUser.username,
+      content: newComment.value.trim(),
+      isAdmin: appStore.isAdmin,
+    });
+    newComment.value = '';
+    commentSuccess.value = true;
+    setTimeout(() => { commentSuccess.value = false; }, 3000);
+  } catch (e) {
+    commentError.value = '发布失败: ' + e.message;
+  }
+  submitting.value = false;
 }
 
-async function deleteComment(id) {
+async function handleDeleteComment(id) {
   if (confirm('确定删除此评论？')) {
-    await appStore.deleteComment(id);
+    try {
+      await appStore.deleteComment(id);
+    } catch (e) {
+      alert('删除失败: ' + e.message);
+    }
   }
 }
 
