@@ -1,10 +1,10 @@
-import { defineStore } from "pinia";
+﻿import { defineStore } from "pinia";
 import { getCOSData, putCOSData, initCOSSaved } from "@/utils/cos";
 
 export const useAppStore = defineStore("app", {
   state: () => ({
     siteConfig: {
-      title: "职评网 - 找工作避雷指南",
+      title: "鑱岃瘎缃?- 鎵惧伐浣滈伩闆锋寚鍗?,
       backgroundImage: "",
       primaryColor: "#4f46e5",
     },
@@ -37,7 +37,7 @@ export const useAppStore = defineStore("app", {
         const data = await getCOSData("config/site-config.json");
         if (data) this.siteConfig = { ...this.siteConfig, ...data };
       } catch (e) {
-        console.log("使用默认配置");
+        console.log("浣跨敤榛樿閰嶇疆");
       }
     },
     async saveSiteConfig() {
@@ -103,3 +103,4 @@ export const useAppStore = defineStore("app", {
     },
   },
 });
+
