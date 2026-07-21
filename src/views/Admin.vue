@@ -115,14 +115,24 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue"
 import { useAppStore } from "@/stores/app"
-import { getCOSConfig, initCOS, isCOSReady } from "@/utils/cos"
+import { getCOSConfig, initCOS, isCOSReady, loadSavedConfig } from "@/utils/cos"
 
 const appStore = useAppStore()
 const currentTab = ref("overview")
 const contentFilter = ref("all")
 const cosSaving = ref(false)
 const cosStatus = ref("")
-const cosError = ref("")
+const cosError = ref(""
+const cosConnected = computed(() => isCOSReady())
+const bucketName = computed(() => getCOSConfig().Bucket)
+const bucketRegion = computed(() => getCOSConfig().Region)
+const saved = loadSavedConfig()
+const cosConfig = ref({
+  SecretId: saved?.SecretId || "",
+  SecretKey: saved?.SecretKey || "",
+  Bucket: saved?.Bucket || getCOSConfig().Bucket,
+  Region: saved?.Region || getCOSConfig().Region
+}))
 const settingsStatus = ref("")
 const settingsError = ref("")
 const syncing = ref(false)
@@ -254,6 +264,7 @@ async function saveSettings() {
 
 function formatTime(t) { if (!t) return ""; return new Date(t).toLocaleString("zh-CN") }
 </script>
+
 
 
 
