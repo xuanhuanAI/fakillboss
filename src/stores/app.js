@@ -1,10 +1,10 @@
-﻿import { defineStore } from "pinia";
+import { defineStore } from "pinia";
 import { getCOSData, putCOSData, initCOSSaved } from "@/utils/cos";
 
 export const useAppStore = defineStore("app", {
   state: () => ({
     siteConfig: {
-      title: "鑱岃瘎缃?- 鎵惧伐浣滈伩闆锋寚鍗?,
+      title: "职评网 - 找工作避雷指南",
       backgroundImage: "",
       primaryColor: "#4f46e5",
     },
