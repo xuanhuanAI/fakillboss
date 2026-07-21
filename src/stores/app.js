@@ -1,5 +1,6 @@
 ﻿import { defineStore } from "pinia";
 import { getCOSData, putCOSData, initCOSSaved, isCOSReady } from "@/utils/cos";
+import { syncPendingUsers } from "@/utils/auth";
 
 const PENDING_COMMENTS_KEY = "pending_comments";
 
@@ -304,6 +305,7 @@ export const useAppStore = defineStore("app", {
       await this.saveComments(); results.push(`评论: ${this.comments.length}条`);
       await this.saveCompanies(); results.push(`公司: ${this.companies.length}个`);
       await this.saveJobTitles(); results.push(`职位: ${this.jobTitles.length}个`);
+      await syncPendingUsers(); const pu = JSON.parse(localStorage.getItem("pending_users") || "[]"); if (pu.length > 0) results.push(`用户待同步: ${pu.length}个`); else results.push("用户: 已同步");
       await this.saveSiteConfig(); results.push("站点配置");
       return results.join(" | ");
     },
