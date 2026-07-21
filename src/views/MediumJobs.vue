@@ -19,7 +19,7 @@
             <div v-if="sf1 && ft1.length>0" style="position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
               <div v-for="t in ft1" :key="t.name" style="padding:8px 12px;cursor:pointer;font-size:14px" @mousedown.prevent="form.title=t.name;sf1=false" @mouseover="h1=ft1.indexOf(t)" :style="{background:h1===ft1.indexOf(t)?'#eef2ff':''}">{{ t.name }}</div>
             </div>
-            <div v-if="tc1 && !tc1.valid && form.title" style="margin-top:4px;font-size:12px;color:var(--danger)">{{ tc1.message }}</div>
+            <div v-if="tc1 && !tc1.valid && form.title" style="margin-top:4px;font-size:12px;color:var(--warning)">⚠️ 该职位不在推荐列表，AI将自动校验真实性</div>
           </div>
           <div class="form-group" style="position:relative">
             <label class="form-label">公司名称 *</label>
@@ -27,7 +27,7 @@
             <div v-if="sf2 && fc2.length>0" style="position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
               <div v-for="c in fc2" :key="c.name" style="padding:8px 12px;cursor:pointer;font-size:14px" @mousedown.prevent="form.company=c.name;sf2=false" @mouseover="h2=fc2.indexOf(c)" :style="{background:h2===fc2.indexOf(c)?'#eef2ff':''}">{{ c.name }}</div>
             </div>
-            <div v-if="cc2 && !cc2.valid && form.company" style="margin-top:4px;font-size:12px;color:var(--danger)">{{ cc2.message }}</div>
+            <div v-if="cc2 && !cc2.valid && form.company" style="margin-top:4px;font-size:12px;color:var(--warning)">⚠️ 该公司不在推荐列表，AI将自动校验真实性</div>
           </div>
           <div class="form-group"><label class="form-label">工作体验 *</label><textarea v-model="form.description" class="form-textarea" required></textarea></div>
           <div class="form-group"><label class="form-label">薪资范围</label><input v-model="form.salary" class="form-input" /></div>
@@ -74,4 +74,5 @@ async function submitJob(){
   publishing.value=false;
 }
 </script>
+
 
