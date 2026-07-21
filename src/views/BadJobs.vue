@@ -15,7 +15,7 @@
         <form @submit.prevent="submitJob">
           <div class="form-group" style="position:relative">
             <label class="form-label">岗位名称 *</label>
-            <input v-model="form.title" class="form-input" placeholder="搜索职位名称" required @input="sf1=true" @focus="sf1=true" @blur="setTimeout(()=>sf1=false,200)" />
+            <input v-model="form.title" class="form-input" placeholder="搜索职位名称" required @input="sf1=true" @focus="sf1=true" @blur="onTitleBlur" />
             <div v-if="sf1 && ft1.length>0" style="position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
               <div v-for="t in ft1" :key="t.name" style="padding:8px 12px;cursor:pointer;font-size:14px" @mousedown.prevent="form.title=t.name;sf1=false" @mouseover="h1=ft1.indexOf(t)" :style="{background:h1===ft1.indexOf(t)?'#eef2ff':''}">{{ t.name }}</div>
             </div>
@@ -23,7 +23,7 @@
           </div>
           <div class="form-group" style="position:relative">
             <label class="form-label">公司名称 *</label>
-            <input v-model="form.company" class="form-input" placeholder="搜索公司名称" required @input="sf2=true" @focus="sf2=true" @blur="setTimeout(()=>sf2=false,200)" />
+            <input v-model="form.company" class="form-input" placeholder="搜索公司名称" required @input="sf2=true" @focus="sf2=true" @blur="onCompanyBlur" />
             <div v-if="sf2 && fc2.length>0" style="position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
               <div v-for="c in fc2" :key="c.name" style="padding:8px 12px;cursor:pointer;font-size:14px" @mousedown.prevent="form.company=c.name;sf2=false" @mouseover="h2=fc2.indexOf(c)" :style="{background:h2===fc2.indexOf(c)?'#eef2ff':''}">{{ c.name }}</div>
             </div>
@@ -60,6 +60,8 @@ const fc2 = computed(() => { const q = (form.value.company||"").trim().toLowerCa
 const tc1 = computed(() => { if(!form.value.title||!form.value.title.trim())return null; return appStore.validateJobTitle(form.value.title); });
 const cc2 = computed(() => { if(!form.value.company||!form.value.company.trim())return null; return appStore.validateCompany(form.value.company); });
 function showToast(m,t){toastMsg.value=m;toastType.value=t;setTimeout(()=>{toastMsg.value="";},3000);}
+function onTitleBlur(){setTimeout(()=>sf1.value=false,200);}
+function onCompanyBlur(){setTimeout(()=>sf2.value=false,200);}
 async function submitJob(){
   const tc=appStore.validateJobTitle(form.value.title); if(!tc.valid){publishError.value=tc.message;return;}
   const cc=appStore.validateCompany(form.value.company); if(!cc.valid){publishError.value=cc.message;return;}
@@ -72,3 +74,4 @@ async function submitJob(){
   publishing.value=false;
 }
 </script>
+
