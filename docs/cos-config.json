@@ -1,7 +1,12 @@
 ﻿{
   "Bucket": "qwertyuiop-1454067625",
   "Region": "ap-guangzhou",
-  "note": "请将上面的 Bucket 和 Region 替换为你在腾讯云COS的真实值",
-  "note2": "Bucket 示例: my-review-site-1250000000",
-  "note3": "Region 示例: ap-guangzhou / ap-shanghai / ap-beijing"
+  "note": "请把上面的 Bucket 和 Region 改为你腾讯云COS的真实值",
+  "writeKey": {
+    "SecretId": "",
+    "SecretKey": "",
+    "note": "请在腾讯云创建一个子账号，授予 COS 写入 data/ 路径的权限",
+    "note2": "然后把子账号的 SecretId 和 SecretKey 填到上面",
+    "note3": "这样所有用户都可以直接写入评论，无需等待管理员同步"
+  }
 }

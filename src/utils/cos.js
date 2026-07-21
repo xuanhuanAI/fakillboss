@@ -1,28 +1,18 @@
-﻿/* COS配置工具 - 支持匿名读取 */
-// ========== 默认配置（会被 cos-config.json 和 localStorage 覆盖） ==========
-let COS_CONFIG = {
-  Bucket: "",
-  Region: "",
-};
-
+﻿/* COS配置工具 */
+let COS_CONFIG = { Bucket: "", Region: "" };
 let cosInstance = null;
 let publicConfigPromise = null;
 
 const STORAGE_KEY = "cos_config";
 
-/** 从 localStorage 加载管理员保存的配置 */
 export function loadSavedConfig() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const config = JSON.parse(saved);
-      return config;
-    }
+    if (saved) return JSON.parse(saved);
   } catch (e) {}
   return null;
 }
 
-/** 从部署的静态文件获取公共桶配置 */
 function fetchPublicConfig() {
   if (publicConfigPromise) return publicConfigPromise;
   publicConfigPromise = fetch("./cos-config.json")
@@ -49,13 +39,8 @@ function fetchPublicConfig() {
   return publicConfigPromise;
 }
 
-export function getCOS() {
-  return cosInstance;
-}
-
-export function isCOSReady() {
-  return cosInstance !== null;
-}
+export function getCOS() { return cosInstance; }
+export function isCOSReady() { return cosInstance !== null; }
 
 export async function initCOS(config) {
   const COSSDK = await import("cos-js-sdk-v5");
@@ -69,23 +54,16 @@ export async function initCOS(config) {
   return cosInstance;
 }
 
-export function getCOSConfig() {
-  return COS_CONFIG;
-}
+export function getCOSConfig() { return COS_CONFIG; }
 
 function getCOSPublicBaseURL() {
   return `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/`;
 }
 
-/**
- * 读取 COS 数据 - 支持两种模式：
- * 1. SDK 模式（管理员已配置密钥时使用）
- * 2. 匿名 HTTP GET 模式（普通访客使用，需公开读权限）
- */
+/** 读取 COS 数据 */
 export function getCOSData(key) {
   return new Promise((resolve, reject) => {
     if (cosInstance) {
-      // SDK模式
       cosInstance.getObject(
         { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key },
         (err, data) => {
@@ -100,13 +78,9 @@ export function getCOSData(key) {
       );
       return;
     }
-    // 匿名模式 - 先获取桶配置
     fetchPublicConfig()
       .then(() => {
-        if (!COS_CONFIG.Bucket) {
-          reject(new Error("COS 未配置"));
-          return null;
-        }
+        if (!COS_CONFIG.Bucket) { reject(new Error("COS 未配置")); return null; }
         return fetch(getCOSPublicBaseURL() + key);
       })
       .then((res) => {
@@ -120,57 +94,64 @@ export function getCOSData(key) {
   });
 }
 
-/** 写入 COS 数据 - 必须使用 SDK */
-export function putCOSData(key, data) {
-  return new Promise((resolve, reject) => {
-    if (!cosInstance) {
-      reject(new Error("COS 未初始化，请在管理后台配置密钥"));
-      return;
-    }
-    cosInstance.putObject(
-      {
-        Bucket: COS_CONFIG.Bucket,
-        Region: COS_CONFIG.Region,
-        Key: key,
-        Body: JSON.stringify(data, null, 2),
-        ContentType: "application/json",
-      },
-      (err, data) => {
-        if (err) reject(err);
-        else resolve(data);
-      }
-    );
+/**
+ * 写入 COS 数据 - 三级机制：
+ * 1. SDK 模式（管理员）
+ * 2. 匿名 HTTP PUT（存储桶需开启"公有读写"）
+ * 3. 失败返回错误（调用方自己处理暂存）
+ */
+export async function putCOSData(key, data) {
+  // 先确保桶配置已加载
+  if (!COS_CONFIG.Bucket) {
+    await fetchPublicConfig();
+  }
+  if (!COS_CONFIG.Bucket) {
+    throw new Error("COS 未配置");
+  }
+
+  // 一级：SDK 模式
+  if (cosInstance) {
+    return new Promise((resolve, reject) => {
+      cosInstance.putObject(
+        {
+          Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region,
+          Key: key, Body: JSON.stringify(data), ContentType: "application/json",
+        },
+        (err, d) => { if (err) reject(err); else resolve(d); }
+      );
+    });
+  }
+
+  // 二级：匿名 HTTP PUT（需存储桶开启"公有读写"，无需子账号）
+  const url = getCOSPublicBaseURL() + key;
+  const res = await fetch(url, {
+    method: "PUT",
+    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json" },
   });
+  if (!res.ok) {
+    throw new Error("写入失败: HTTP " + res.status + "（请将存储桶权限改为[公有读写]）");
+  }
+  return res;
 }
 
+/** 删除 COS 数据 - 必须用 SDK */
 export function deleteCOSData(key) {
   return new Promise((resolve, reject) => {
-    if (!cosInstance) {
-      reject(new Error("COS 未初始化"));
-      return;
-    }
+    if (!cosInstance) { reject(new Error("COS 未初始化")); return; }
     cosInstance.deleteObject(
       { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key },
-      (err, data) => {
-        if (err) reject(err);
-        else resolve(data);
-      }
+      (err, d) => { if (err) reject(err); else resolve(d); }
     );
   });
 }
 
 export function uploadFile(key, file) {
   return new Promise((resolve, reject) => {
-    if (!cosInstance) {
-      reject(new Error("COS 未初始化"));
-      return;
-    }
+    if (!cosInstance) { reject(new Error("COS 未初始化")); return; }
     cosInstance.putObject(
       { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region, Key: key, Body: file },
-      (err, data) => {
-        if (err) reject(err);
-        else resolve(data);
-      }
+      (err, d) => { if (err) reject(err); else resolve(d); }
     );
   });
 }
