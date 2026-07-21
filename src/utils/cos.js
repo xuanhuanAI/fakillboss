@@ -1,4 +1,4 @@
-﻿/* COS配置工具 - 完整版：匿名读 + 公共SDK写 */
+﻿/* COS配置工具 - 完整版 */
 let COS_CONFIG = { Bucket: "qwertyuiop-1454067625", Region: "ap-guangzhou" };
 let cosInstance = null;
 let writeInstance = null;
@@ -17,7 +17,6 @@ export function loadSavedConfig() {
 async function loadPublicConfig() {
   if (publicConfigLoaded) return;
 
-  // 1. 从 cos-config.json 获取 Bucket/Region
   try {
     const res = await fetch("./cos-config.json");
     if (res.ok) {
@@ -29,7 +28,6 @@ async function loadPublicConfig() {
     }
   } catch (e) {}
 
-  // 2. 从 COS 读取写入凭据（管理员之前保存的 config/write-creds.json）
   try {
     const url = `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/config/write-creds.json`;
     const res = await fetch(url);
@@ -51,6 +49,11 @@ async function loadPublicConfig() {
 export function getCOS() { return cosInstance; }
 export function isCOSReady() { return cosInstance !== null; }
 
+/** 是否有任何可用的写入实例（管理员SDK 或 公共写入SDK） */
+export function isWriteReady() {
+  return cosInstance !== null || writeInstance !== null;
+}
+
 export async function initCOS(config) {
   const COSSDK = await import("cos-js-sdk-v5");
   cosInstance = new COSSDK.default({
@@ -61,20 +64,16 @@ export async function initCOS(config) {
   COS_CONFIG.Region = config.Region || COS_CONFIG.Region;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
 
-  // ★ 把凭据写入 COS，供所有用户读取后用 SDK 写入
   try {
     await cosInstance.putObject({
-      Bucket: COS_CONFIG.Bucket,
-      Region: COS_CONFIG.Region,
+      Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region,
       Key: "config/write-creds.json",
       Body: JSON.stringify({ SecretId: config.SecretId, SecretKey: config.SecretKey }),
       ContentType: "application/json",
     });
-    console.log("写入凭据已同步到COS");
   } catch (e) {
     console.warn("写入凭据同步失败:", e.message);
   }
-
   return cosInstance;
 }
 
@@ -85,11 +84,9 @@ function getWriter() {
   return writeInstance;
 }
 
-/** 读取 COS 数据 */
 export async function getCOSData(key) {
   if (!publicConfigLoaded) await loadPublicConfig();
 
-  // SDK 模式（管理员）
   if (cosInstance) {
     return new Promise((resolve, reject) => {
       cosInstance.getObject(
@@ -107,7 +104,6 @@ export async function getCOSData(key) {
     });
   }
 
-  // 匿名 GET 模式
   const url = `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/${key}`;
   const res = await fetch(url);
   if (res.status === 404) return null;
@@ -115,19 +111,13 @@ export async function getCOSData(key) {
   return await res.json();
 }
 
-/** 写入 COS 数据 */
 export function putCOSData(key, data) {
   return new Promise((resolve, reject) => {
     const writer = getWriter();
-    if (!writer) {
-      reject(new Error("暂无写入权限"));
-      return;
-    }
+    if (!writer) { reject(new Error("暂无写入权限")); return; }
     writer.putObject(
-      {
-        Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region,
-        Key: key, Body: JSON.stringify(data), ContentType: "application/json",
-      },
+      { Bucket: COS_CONFIG.Bucket, Region: COS_CONFIG.Region,
+        Key: key, Body: JSON.stringify(data), ContentType: "application/json" },
       (err, d) => { if (err) reject(err); else resolve(d); }
     );
   });

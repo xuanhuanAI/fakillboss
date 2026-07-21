@@ -1,5 +1,5 @@
 ﻿import { defineStore } from "pinia";
-import { getCOSData, putCOSData, initCOSSaved, isCOSReady } from "@/utils/cos";
+import { getCOSData, putCOSData, initCOSSaved, isCOSReady, isWriteReady } from "@/utils/cos";
 import { syncPendingUsers } from "@/utils/auth";
 
 const PENDING_COMMENTS_KEY = "pending_comments";
@@ -245,7 +245,7 @@ export const useAppStore = defineStore("app", {
     async flushPendingComments() {
       const pending = this.getPendingComments();
       if (pending.length === 0) return;
-      if (!isCOSReady()) return;
+      if (!isWriteReady()) return;
       let changed = false;
       for (const pc of pending) {
         if (!this.comments.find((c) => c.id === pc.id)) { this.comments.push(pc); changed = true; }
@@ -282,16 +282,11 @@ export const useAppStore = defineStore("app", {
     async addComment(comment) {
       const newComment = { ...comment, id: Date.now().toString(), createdAt: new Date().toISOString() };
       this.comments.unshift(newComment);
-      if (isCOSReady()) await this.saveComments();
-      else {
-        const pending = this.getPendingComments();
-        pending.push(newComment);
-        this.savePendingComments(pending);
-      }
+      if (isWriteReady()) await this.saveComments();
     },
     async deleteComment(commentId) {
       this.comments = this.comments.filter((c) => c.id !== commentId);
-      if (isCOSReady()) await this.saveComments();
+      if (isWriteReady()) await this.saveComments();
     },
 
     async syncAllToCOS() {
@@ -334,3 +329,4 @@ export const useAppStore = defineStore("app", {
     },
   },
 });
+
