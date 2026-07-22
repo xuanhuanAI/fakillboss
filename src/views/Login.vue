@@ -23,6 +23,7 @@
           <button type="button" class="btn btn-sm btn-primary" @click="sendPhoneCode" :disabled="codeSending||phoneCountdown>0" style="white-space:nowrap;height:40px">{{ codeSending ? '发送中' : phoneCountdown > 0 ? phoneCountdown+'s' : '获取验证码' }}</button>
         </div>
         <div v-if="phoneLoginError" style="color:var(--danger);font-size:12px;margin-bottom:8px">{{ phoneLoginError }}</div>
+        <div v-if="phoneCodeSent" style="font-size:12px;color:var(--success);margin-bottom:8px;background:#f0fdf4;padding:6px 10px;border-radius:6px;border:1px solid #6ee7b7">✅ [模拟] 验证码 <strong style="font-size:16px;letter-spacing:2px">{{ phoneRealCode }}</strong>（5分钟有效）</div>
         <button type="submit" class="btn btn-primary" style="width:100%" :disabled="loading">{{ loading ? "登录中..." : "手机验证登录" }}</button>
       </form>
 
@@ -37,42 +38,73 @@ import { useRouter } from "vue-router";
 import { useAppStore } from "@/stores/app";
 import { login, loginByPhone } from "@/utils/auth";
 import { validatePhone, generateSMSCode } from "@/utils/ai";
-const router = useRouter(); const appStore = useAppStore();
+
+const router = useRouter();
+const appStore = useAppStore();
+
 const loginMode = ref("pwd");
-const username = ref(""); const password = ref("");
-const phoneLogin = ref(""); const phoneCode = ref("");
-const error = ref(""); const loading = ref(false);
-const phoneLoginError = ref(""); const codeSending = ref(false);
+const username = ref("");
+const password = ref("");
+const phoneLogin = ref("");
+const phoneCode = ref("");
+const error = ref("");
+const loading = ref(false);
+const phoneLoginError = ref("");
+const codeSending = ref(false);
 const phoneRealCode = ref("");
-const phoneCountdown = ref(0); const phoneCodeExpires = ref(0); let phoneTimer = null;
-function startPhoneCD() { phoneCountdown.value = 60; if (phoneTimer) clearInterval(phoneTimer); phoneTimer = setInterval(() => { phoneCountdown.value--; if (phoneCountdown.value <= 0) { clearInterval(phoneTimer); phoneTimer = null; } }, 1000); }
+const phoneCodeSent = ref(false);
+const phoneCountdown = ref(0);
+const phoneCodeExpires = ref(0);
+let phoneTimer = null;
+
+function startPhoneCD() {
+  phoneCountdown.value = 60;
+  if (phoneTimer) clearInterval(phoneTimer);
+  phoneTimer = setInterval(() => {
+    phoneCountdown.value--;
+    if (phoneCountdown.value <= 0) { clearInterval(phoneTimer); phoneTimer = null; }
+  }, 1000);
+}
 
 async function handlePwdLogin() {
-  error.value = ""; loading.value = true;
-  try { const user = await login(username.value, password.value); if (user) { appStore.setUser(user); router.push("/"); } else { error.value = "用户名或密码错误"; } }
-  catch (e) { error.value = "登录失败: " + e.message; }
+  error.value = "";
+  loading.value = true;
+  try {
+    const user = await login(username.value, password.value);
+    if (user) { appStore.setUser(user); router.push("/"); }
+    else { error.value = "用户名或密码错误"; }
+  } catch (e) { error.value = "登录失败: " + e.message; }
   loading.value = false;
 }
 
 async function sendPhoneCode() {
   const p = validatePhone(phoneLogin.value);
   if (!p.valid) { phoneLoginError.value = "请输入正确的手机号"; return; }
-  phoneLoginError.value = ""; codeSending.value = true;
-  phoneRealCode.value = await generateSMSCode(p.phone);
+  phoneLoginError.value = "";
+  codeSending.value = true;
+  try {
+    const result = await generateSMSCode(p.phone);
+    phoneRealCode.value = result.code;
+    phoneCodeExpires.value = result.expiresAt;
+    phoneCodeSent.value = true;
+    startPhoneCD();
+  } catch (e) { phoneLoginError.value = "发送失败: " + e.message; }
   codeSending.value = false;
 }
 
 async function handlePhoneLogin() {
-  error.value = ""; phoneLoginError.value = "";
+  error.value = "";
+  phoneLoginError.value = "";
+  if (!phoneCodeSent.value || !phoneCode.value) { phoneLoginError.value = "请先获取验证码"; return; }
   if (Date.now() > phoneCodeExpires.value) { phoneLoginError.value = "验证码已过期，请重新获取"; return; }
   if (phoneCode.value !== phoneRealCode.value) { phoneLoginError.value = "验证码错误"; return; }
   loading.value = true;
   try {
     const p = validatePhone(phoneLogin.value);
     const user = await loginByPhone(p.phone);
-    appStore.setUser(user); router.push("/");
+    appStore.setUser(user);
+    router.push("/");
   } catch (e) { error.value = e.message; }
   loading.value = false;
 }
 </script>
-
