@@ -21,7 +21,7 @@
             <label class="form-label">短信验证码 *</label>
             <input v-model="smsCode" class="form-input" placeholder="输入6位验证码" maxlength="6" required />
           </div>
-          <button type="button" class="btn btn-sm" :class="smsSent?'btn-outline':'btn-primary' @click="sendSMSCode" :disabled="smsSending||countdown>0" style="white-space:nowrap;height:40px">
+          <button type="button" class="btn btn-sm" :class="smsSent?'btn-outline':'btn-primary'" @click="sendSMSCode" :disabled="smsSending||countdown>0" style="white-space:nowrap;height:40px">
             {{ smsSending ? '发送中...' : countdown > 0 ? countdown+'s' : smsSent ? '重新获取' : '获取验证码' }}
           </button>
         </div>
@@ -139,5 +139,6 @@ async function handleRegister() {
   loading.value = false;
 }
 </script>
+
 
 
