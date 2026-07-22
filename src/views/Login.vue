@@ -1,20 +1,33 @@
-<template>
+﻿<template>
   <div class="auth-page">
     <div class="auth-card">
       <h2 class="auth-title">🔐 登录</h2>
-      <form @submit.prevent="handleLogin">
-        <div class="form-group">
-          <label class="form-label">用户名</label>
-          <input v-model="username" class="form-input" placeholder="请输入用户名" required />
-        </div>
-        <div class="form-group">
-          <label class="form-label">密码</label>
-          <input v-model="password" class="form-input" type="password" placeholder="请输入密码" required />
-        </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-sm" :class="loginMode==='pwd'?'btn-primary':'btn-outline'" @click="loginMode='pwd'" style="flex:1">密码登录</button>
+        <button class="btn btn-sm" :class="loginMode==='phone'?'btn-primary':'btn-outline'" @click="loginMode='phone'" style="flex:1">手机验证码登录</button>
+      </div>
+
+      <!-- 密码登录 -->
+      <form v-if="loginMode==='pwd'" @submit.prevent="handlePwdLogin">
+        <div class="form-group"><label class="form-label">用户名</label><input v-model="username" class="form-input" placeholder="请输入用户名" required /></div>
+        <div class="form-group"><label class="form-label">密码</label><input v-model="password" class="form-input" type="password" placeholder="请输入密码" required /></div>
         <button type="submit" class="btn btn-primary" style="width:100%" :disabled="loading">{{ loading ? "登录中..." : "登录" }}</button>
+        <div style="text-align:center;margin-top:12px"><router-link to="/reset-password" style="font-size:13px;color:var(--text-secondary)">忘记密码？</router-link></div>
       </form>
+
+      <!-- 手机验证码登录 -->
+      <form v-if="loginMode==='phone'" @submit.prevent="handlePhoneLogin">
+        <div class="form-group"><label class="form-label">手机号</label><input v-model="phoneLogin" class="form-input" placeholder="请输入绑定手机号" required maxlength="11" /></div>
+        <div class="form-group" style="display:flex;gap:8px;align-items:flex-end">
+          <div style="flex:1"><label class="form-label">验证码</label><input v-model="phoneCode" class="form-input" placeholder="6位验证码" maxlength="6" required /></div>
+          <button type="button" class="btn btn-sm btn-primary" @click="sendPhoneCode" :disabled="codeSending" style="white-space:nowrap;height:40px">{{ codeSending ? '发送中' : '获取验证码' }}</button>
+        </div>
+        <div v-if="phoneLoginError" style="color:var(--danger);font-size:12px;margin-bottom:8px">{{ phoneLoginError }}</div>
+        <button type="submit" class="btn btn-primary" style="width:100%" :disabled="loading">{{ loading ? "登录中..." : "手机验证登录" }}</button>
+      </form>
+
       <div v-if="error" style="color:var(--danger);font-size:14px;margin-top:12px;text-align:center">{{ error }}</div>
-      <div class="auth-footer">还没有账号？<router-link to="/register">立即注册</router-link></div>
+      <div class="auth-footer">还没有账号？<router-link to="/register">立即实名注册</router-link></div>
     </div>
   </div>
 </template>
@@ -22,21 +35,40 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAppStore } from "@/stores/app";
-import { login } from "@/utils/auth";
-const router = useRouter();
-const appStore = useAppStore();
-const username = ref("");
-const password = ref("");
-const error = ref("");
-const loading = ref(false);
-async function handleLogin() {
-  error.value = "";
+import { login, loginByPhone } from "@/utils/auth";
+import { validatePhone, generateSMSCode } from "@/utils/ai";
+const router = useRouter(); const appStore = useAppStore();
+const loginMode = ref("pwd");
+const username = ref(""); const password = ref("");
+const phoneLogin = ref(""); const phoneCode = ref("");
+const error = ref(""); const loading = ref(false);
+const phoneLoginError = ref(""); const codeSending = ref(false);
+const phoneRealCode = ref("");
+
+async function handlePwdLogin() {
+  error.value = ""; loading.value = true;
+  try { const user = await login(username.value, password.value); if (user) { appStore.setUser(user); router.push("/"); } else { error.value = "用户名或密码错误"; } }
+  catch (e) { error.value = "登录失败: " + e.message; }
+  loading.value = false;
+}
+
+async function sendPhoneCode() {
+  const p = validatePhone(phoneLogin.value);
+  if (!p.valid) { phoneLoginError.value = "请输入正确的手机号"; return; }
+  phoneLoginError.value = ""; codeSending.value = true;
+  phoneRealCode.value = await generateSMSCode(p.phone);
+  codeSending.value = false;
+}
+
+async function handlePhoneLogin() {
+  error.value = ""; phoneLoginError.value = "";
+  if (phoneCode.value !== phoneRealCode.value) { phoneLoginError.value = "验证码错误"; return; }
   loading.value = true;
   try {
-    const user = await login(username.value, password.value);
-    if (user) { appStore.setUser(user); router.push("/"); }
-    else { error.value = "用户名或密码错误"; }
-  } catch (e) { error.value = "登录失败: " + e.message; }
+    const p = validatePhone(phoneLogin.value);
+    const user = await loginByPhone(p.phone);
+    appStore.setUser(user); router.push("/");
+  } catch (e) { error.value = e.message; }
   loading.value = false;
 }
 </script>
