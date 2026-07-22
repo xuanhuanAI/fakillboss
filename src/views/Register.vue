@@ -89,16 +89,20 @@ function checkPwd() {
 }
 
 async function sendSMSCode() {
-  const p = validatePhone(phone.value);
-  if (!p.valid) { phoneError.value = "请输入正确的11位手机号"; return; }
-  phoneError.value = ""; smsError.value = ""; smsSending.value = true;
-  try {
-    realCode.value = await generateSMSCode(p.phone);
-    smsSent.value = true;
-    // 开发模式：自动填入验证码（生产环境需要用户自己输入）
-    // smsCode.value = realCode.value;
-  } catch (e) { smsError.value = "发送失败: " + e.message; }
-  smsSending.value = false;
+    const p = validatePhone(phone.value);
+    if (!p.valid) { phoneError.value = "请输入正确的11位手机号"; return; }
+    phoneError.value = ""; smsError.value = ""; smsSending.value = true;
+    try {
+      const result = await generateSMSCode(p.phone);
+      realCode.value = result.code;
+      codeExpiresAt.value = result.expiresAt;
+      smsSent.value = true;
+      startCountdown();
+    } catch (e) { smsError.value = "发送失败: " + e.message; }
+    smsSending.value = false;
+  }
+    smsSending.value = false;
+  }
 }
 
 async function handleRegister() {
@@ -139,6 +143,7 @@ async function handleRegister() {
   loading.value = false;
 }
 </script>
+
 
 
 

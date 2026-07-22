@@ -79,8 +79,9 @@ export function validatePhone(phone) {
 /** AI生成短信验证码（模拟） */
 export async function generateSMSCode(phone) {
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  console.log(`[模拟短信] 已向 ${phone} 发送验证码: ${code}`);
-  return code;
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  console.log(`[模拟短信] 已向 ${phone} 发送验证码: ${code}（有效期5分钟）`);
+  return { code, expiresAt, phone };
 }
 
 /** AI校验密码强度 */
@@ -116,4 +117,5 @@ export async function validateWithAI(company, title) {
   } catch {}
   return { valid: true, message: "" };
 }
+
 
