@@ -101,9 +101,6 @@ async function sendSMSCode() {
     } catch (e) { smsError.value = "发送失败: " + e.message; }
     smsSending.value = false;
   }
-    smsSending.value = false;
-  }
-}
 
 async function handleRegister() {
   error.value = "";
@@ -143,6 +140,7 @@ async function handleRegister() {
   loading.value = false;
 }
 </script>
+
 
 
 
