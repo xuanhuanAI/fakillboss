@@ -45,7 +45,7 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHashHistory("/fakillboss/"),
+  history: createWebHashHistory(),
   routes,
 });
 
@@ -63,4 +63,6 @@ router.beforeEach((to, from, next) => {
 });
 
 export default router;
+
+
 
