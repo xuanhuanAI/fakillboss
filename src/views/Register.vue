@@ -21,12 +21,12 @@
             <label class="form-label">短信验证码 *</label>
             <input v-model="smsCode" class="form-input" placeholder="输入6位验证码" maxlength="6" required />
           </div>
-          <button type="button" class="btn btn-sm" :class="smsSent?'btn-outline':'btn-primary'" @click="sendSMSCode" :disabled="smsSending||smsSent" style="white-space:nowrap;height:40px">
-            {{ smsSending ? '发送中...' : smsSent ? '已发送' : '获取验证码' }}
+          <button type="button" class="btn btn-sm" :class="smsSent?"btn-outline":"btn-primary" @click="sendSMSCode" :disabled="smsSending||countdown>0" style="white-space:nowrap;height:40px">
+            {{ smsSending ? '发送中...' : countdown > 0 ? countdown+'s' : smsSent ? '重新获取' : '获取验证码' }}
           </button>
         </div>
         <div v-if="smsError" style="margin-top:4px;font-size:12px;color:var(--danger);margin-bottom:8px">{{ smsError }}</div>
-        <div v-if="smsSent" style="font-size:12px;color:var(--success);margin-bottom:4px">✅ 验证码已通过AI模拟发送（控制台可见）</div>
+        <div v-if="smsSent" style="font-size:12px;color:var(--success);margin-bottom:4px;background:#f0fdf4;padding:6px 10px;border-radius:6px;border:1px solid #6ee7b7">✅ [模拟] 验证码 <strong style="font-size:16px;letter-spacing:2px">{{ realCode }}</strong>（有效期5分钟，60秒后可重新获取）</div>
         <!-- 用户名 -->
         <div class="form-group">
           <label class="form-label">用户名 *</label>
@@ -77,7 +77,10 @@ const error = ref(""); const loading = ref(false); const aiChecking = ref(false)
 const nameChecked = ref(false); const nameCheckMsg = ref("");
 const phoneError = ref(""); const phoneChecked = ref(false);
 const smsSending = ref(false); const smsSent = ref(false); const smsError = ref("");
-const realCode = ref(""); // AI生成的验证码
+const realCode = ref(""); const codeExpiresAt = ref(0);
+const countdown = ref(0); let countdownTimer = null;
+function startCountdown() { countdown.value = 60; if (countdownTimer) clearInterval(countdownTimer); countdownTimer = setInterval(() => { countdown.value--; if (countdown.value <= 0) { clearInterval(countdownTimer); countdownTimer = null; } }, 1000); }
+
 const pwdLevel = ref(""); const pwdScore = ref(0); const pwdErrors = ref([]);
 
 function checkPwd() {
@@ -112,6 +115,7 @@ async function handleRegister() {
   phoneChecked.value = true;
   // 验证短信验证码
   if (!smsSent.value || !smsCode.value) { error.value = "请先获取短信验证码"; return; }
+  if (Date.now() > codeExpiresAt.value) { error.value = "验证码已过期，请重新获取"; return; }
   if (smsCode.value !== realCode.value) { error.value = "验证码错误"; return; }
   // 验证密码一致性
   if (password.value !== confirmPassword.value) { error.value = "两次密码不一致"; return; }
@@ -135,3 +139,4 @@ async function handleRegister() {
   loading.value = false;
 }
 </script>
+

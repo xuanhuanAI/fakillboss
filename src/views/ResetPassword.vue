@@ -7,7 +7,7 @@
         <div class="form-group"><label class="form-label">手机号</label><input v-model="phone" class="form-input" placeholder="输入绑定的手机号" required /></div>
         <div class="form-group" style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1"><label class="form-label">验证码</label><input v-model="smsCode" class="form-input" placeholder="6位验证码" maxlength="6" required /></div>
-          <button type="button" class="btn btn-sm btn-primary" @click="sendResetCode" :disabled="sending" style="white-space:nowrap;height:40px">{{ sending ? '发送中' : '获取验证码' }}</button>
+          <button type="button" class="btn btn-sm btn-primary" @click="sendResetCode" :disabled="sending||cd>0" style="white-space:nowrap;height:40px">{{ sending ? '发送中' : cd > 0 ? cd+'s' : '获取验证码' }}</button>
         </div>
         <div v-if="smsError" style="color:var(--danger);font-size:12px;margin-bottom:8px">{{ smsError }}</div>
         <button class="btn btn-primary" style="width:100%" @click="verifyCode" :disabled="!smsCode">验证身份</button>
@@ -40,6 +40,9 @@ const error = ref(""); const success = ref("");
 const sending = ref(false); const smsError = ref("");
 const resetting = ref(false);
 const realCode = ref("");
+const codeExpires = ref(0);
+const cd = ref(0); let cdTimer = null;
+function startCD() { cd.value = 60; if (cdTimer) clearInterval(cdTimer); cdTimer = setInterval(() => { cd.value--; if (cd.value <= 0) { clearInterval(cdTimer); cdTimer = null; } }, 1000); }
 const pwdLevel = ref(""); const pwdScore = ref(0); const pwdErrors = ref([]);
 
 function checkPwd() { const r = validatePasswordStrength(newPassword.value); pwdScore.value = r.score; pwdLevel.value = r.level; pwdErrors.value = r.errors; }
@@ -53,6 +56,7 @@ async function sendResetCode() {
 
 async function verifyCode() {
   error.value = "";
+  if (Date.now() > codeExpires.value) { error.value = "验证码已过期，请重新获取"; return; }
   if (smsCode.value !== realCode.value) { error.value = "验证码错误"; return; }
   step.value = 2;
 }
@@ -72,3 +76,4 @@ async function resetPwd() {
   resetting.value = false;
 }
 </script>
+

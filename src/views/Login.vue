@@ -20,7 +20,7 @@
         <div class="form-group"><label class="form-label">手机号</label><input v-model="phoneLogin" class="form-input" placeholder="请输入绑定手机号" required maxlength="11" /></div>
         <div class="form-group" style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1"><label class="form-label">验证码</label><input v-model="phoneCode" class="form-input" placeholder="6位验证码" maxlength="6" required /></div>
-          <button type="button" class="btn btn-sm btn-primary" @click="sendPhoneCode" :disabled="codeSending" style="white-space:nowrap;height:40px">{{ codeSending ? '发送中' : '获取验证码' }}</button>
+          <button type="button" class="btn btn-sm btn-primary" @click="sendPhoneCode" :disabled="codeSending||phoneCountdown>0" style="white-space:nowrap;height:40px">{{ codeSending ? '发送中' : phoneCountdown > 0 ? phoneCountdown+'s' : '获取验证码' }}</button>
         </div>
         <div v-if="phoneLoginError" style="color:var(--danger);font-size:12px;margin-bottom:8px">{{ phoneLoginError }}</div>
         <button type="submit" class="btn btn-primary" style="width:100%" :disabled="loading">{{ loading ? "登录中..." : "手机验证登录" }}</button>
@@ -44,6 +44,8 @@ const phoneLogin = ref(""); const phoneCode = ref("");
 const error = ref(""); const loading = ref(false);
 const phoneLoginError = ref(""); const codeSending = ref(false);
 const phoneRealCode = ref("");
+const phoneCountdown = ref(0); const phoneCodeExpires = ref(0); let phoneTimer = null;
+function startPhoneCD() { phoneCountdown.value = 60; if (phoneTimer) clearInterval(phoneTimer); phoneTimer = setInterval(() => { phoneCountdown.value--; if (phoneCountdown.value <= 0) { clearInterval(phoneTimer); phoneTimer = null; } }, 1000); }
 
 async function handlePwdLogin() {
   error.value = ""; loading.value = true;
@@ -62,6 +64,7 @@ async function sendPhoneCode() {
 
 async function handlePhoneLogin() {
   error.value = ""; phoneLoginError.value = "";
+  if (Date.now() > phoneCodeExpires.value) { phoneLoginError.value = "验证码已过期，请重新获取"; return; }
   if (phoneCode.value !== phoneRealCode.value) { phoneLoginError.value = "验证码错误"; return; }
   loading.value = true;
   try {
@@ -72,3 +75,4 @@ async function handlePhoneLogin() {
   loading.value = false;
 }
 </script>
+

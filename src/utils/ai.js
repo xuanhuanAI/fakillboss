@@ -116,3 +116,4 @@ export async function validateWithAI(company, title) {
   } catch {}
   return { valid: true, message: "" };
 }
+
