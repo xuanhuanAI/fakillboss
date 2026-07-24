@@ -33,6 +33,13 @@
           <div class="form-group"><label class="form-label">涉及金额</label><input v-model="form.salary" class="form-input" /></div>
           <div v-if="aiChecking" style="font-size:13px;color:var(--primary);margin-bottom:8px">🤖 AI校验中...</div>
           <div v-if="publishError" style="color:var(--danger);font-size:13px;margin-bottom:8px">{{ publishError }}</div>
+          <div v-if="aiWarning" style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:10px;margin-bottom:8px">
+            <div style="font-size:13px;color:#9a3412">{{ aiWarning }}</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button type="button" class="btn btn-outline" @click="aiWarning=&apos;&apos;">取消</button>
+              <button type="button" class="btn btn-danger" @click="forcePublish">忽略警告，仍要发布</button>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button type="button" class="btn btn-outline" @click="showForm = false">取消</button>
             <button type="submit" class="btn btn-danger" :disabled="publishing||aiChecking">{{ publishing?'发布中...':aiChecking?'校验中...':'发布避雷' }}</button>
@@ -53,6 +60,7 @@ const showForm = ref(false); const publishing = ref(false); const publishError =
 const toastMsg = ref(""); const toastType = ref("toast-success");
 const sf1 = ref(false); const h1 = ref(-1); const sf2 = ref(false); const h2 = ref(-1);
 const aiChecking = ref(false);
+const aiWarning = ref("");
 const form = ref({ title:'', company:'', description:'', salary:'' });
 onMounted(() => { appStore.ensureDataLoaded(); });
 const ft1 = computed(() => { const q = (form.value.title||"").trim().toLowerCase(); if(!q)return appStore.jobTitles.slice(0,10); return appStore.jobTitles.filter(t=>t.name.toLowerCase().includes(q)).slice(0,10); });
@@ -63,16 +71,22 @@ function showToast(m,t){toastMsg.value=m;toastType.value=t;setTimeout(()=>{toast
 function onTitleBlur(){setTimeout(()=>sf1.value=false,200);}
 function onCompanyBlur(){setTimeout(()=>sf2.value=false,200);}
 async function submitJob(){
-  const tc=appStore.validateJobTitle(form.value.title); if(!tc.valid){publishError.value=tc.message;return;}
-  const cc=appStore.validateCompany(form.value.company); if(!cc.valid){publishError.value=cc.message;return;}
   aiChecking.value=true; publishError.value="";
-  try { const ai=await validateWithAI(form.value.company,form.value.title); if(!ai.valid){publishError.value="🤖 AI校验未通过: "+ai.message;aiChecking.value=false;return;} } catch(e) { console.warn("AI失败放行:",e.message); }
+  try {
+    const ai=await validateWithAI(form.value.company,form.value.title);
+    if(!ai.valid){aiWarning.value="AI提示: "+ai.message;aiChecking.value=false;return;}
+  } catch(e) { console.warn("AI校验失败，放行:",e.message); }
   aiChecking.value=false;
+  await doPublish();
+}
+async function forcePublish(){aiWarning.value="";await doPublish();}
+async function doPublish(){
   publishing.value=true;
   try{await appStore.addJob('bad',{title:form.value.title,company:form.value.company,description:form.value.description,salary:form.value.salary,author:appStore.currentUser.nickname||appStore.currentUser.username,authorId:appStore.currentUser.username});form.value={title:'',company:'',description:'',salary:''};showForm.value=false;showToast("✅ 发布成功！");}
   catch(e){publishError.value=e.message;showToast("❌ 发布失败","toast-error");}
   publishing.value=false;
 }
 </script>
+
 
 

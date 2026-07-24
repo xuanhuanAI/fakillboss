@@ -33,6 +33,13 @@
           <div class="form-group"><label class="form-label">薪资范围</label><input v-model="form.salary" class="form-input" /></div>
           <div v-if="aiChecking" style="font-size:13px;color:var(--primary);margin-bottom:8px">🤖 AI校验中，请稍候...</div>
           <div v-if="publishError" style="color:var(--danger);font-size:13px;margin-bottom:8px">{{ publishError }}</div>
+          <div v-if="aiWarning" style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:10px;margin-bottom:8px">
+            <div style="font-size:13px;color:#9a3412">{{ aiWarning }}</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button type="button" class="btn btn-outline" @click="aiWarning=&apos;&apos;">取消</button>
+              <button type="button" class="btn btn-success" @click="forcePublish">忽略警告，仍要发布</button>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button type="button" class="btn btn-outline" @click="showForm = false">取消</button>
             <button type="submit" class="btn btn-success" :disabled="publishing || aiChecking">{{ publishing ? '发布中...' : aiChecking ? '校验中...' : '发布推荐' }}</button>
@@ -54,6 +61,7 @@ const showForm = ref(false); const publishing = ref(false); const publishError =
 const toastMsg = ref(""); const toastType = ref("toast-success");
 const sf1 = ref(false); const h1 = ref(-1); const sf2 = ref(false); const h2 = ref(-1);
 const aiChecking = ref(false);
+const aiWarning = ref("");
 const form = ref({ title:'', company:'', description:'', salary:'' });
 onMounted(() => { appStore.ensureDataLoaded(); });
 
@@ -84,5 +92,6 @@ async function submitJob(){
   publishing.value = false;
 }
 </script>
+
 
 
