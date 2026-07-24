@@ -141,16 +141,8 @@ export const useAppStore = defineStore("app", {
 
     validateCompany(name) {
       if (!name || !name.trim()) return { valid: false, message: "请输入公司名称" };
-      const match = this.companies.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
-      if (match) return { valid: true, match: match.name };
-      const fuzzy = this.companies.filter((c) => c.name.includes(name.trim()) || name.includes(c.name));
-      return {
-        valid: false,
-        suggestions: fuzzy.map((c) => c.name),
-        message: fuzzy.length > 0
-          ? `「${name}」不在收录名单中。你要找的是不是：${fuzzy.map(c => c.name).join("、")}？`
-          : `「${name}」尚未被收录，无法发布。请联系管理员添加该公司。`,
-      };
+      // 不再做名单校验，全部由 AI 审核
+      return { valid: true, match: name.trim() };
     },
 
     // ==================== 职位管理 ====================
@@ -206,16 +198,8 @@ export const useAppStore = defineStore("app", {
 
     validateJobTitle(title) {
       if (!title || !title.trim()) return { valid: false, message: "请输入岗位名称" };
-      const match = this.jobTitles.find((t) => t.name.trim().toLowerCase() === title.trim().toLowerCase());
-      if (match) return { valid: true, match: match.name };
-      const fuzzy = this.jobTitles.filter((t) => t.name.includes(title.trim()) || title.includes(t.name));
-      return {
-        valid: false,
-        suggestions: fuzzy.map((t) => t.name),
-        message: fuzzy.length > 0
-          ? `「${title}」不在收录名单中。你要找的是不是：${fuzzy.map(t => t.name).join("、")}？`
-          : `「${title}」尚未被收录，无法发布。请联系管理员添加该职位。`,
-      };
+      // 不再做名单校验，全部由 AI 审核
+      return { valid: true, match: title.trim() };
     },
 
     // ==================== 评论暂存（改进版） ====================
@@ -359,6 +343,8 @@ export const useAppStore = defineStore("app", {
     },
   },
 });
+
+
 
 
 
