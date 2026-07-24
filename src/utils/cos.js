@@ -6,6 +6,18 @@ let publicConfigLoaded = false;
 
 const STORAGE_KEY = "cos_config";
 
+/** 带超时的 fetch */
+async function fetchWithTimeout(url, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function loadSavedConfig() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -18,7 +30,7 @@ async function loadPublicConfig(retries = 2) {
   if (publicConfigLoaded) return;
 
   try {
-    const res = await fetch("./cos-config.json");
+    const res = await fetchWithTimeout("./cos-config.json");
     if (res.ok) {
       const cfg = await res.json();
       if (cfg.Bucket && cfg.Bucket !== "your-bucket-1250000000") {
@@ -31,7 +43,7 @@ async function loadPublicConfig(retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const url = `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/config/write-creds.json`;
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url);
       if (res.ok) {
         const creds = await res.json();
         if (creds.SecretId && creds.SecretKey) {
@@ -131,7 +143,7 @@ export async function getCOSData(key) {
   }
 
   const url = `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/${key}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("读取失败: HTTP " + res.status);
   return await res.json();
@@ -143,7 +155,7 @@ export function putCOSData(key, data) {
     if (!writer) {
       // 无SDK写入能力时用fetch尝试（桶需开启公有写权限）
       const url = `https://${COS_CONFIG.Bucket}.cos.${COS_CONFIG.Region}.myqcloud.com/${key}`;
-      fetch(url, {
+      fetchWithTimeout(url, {
         method: "PUT",
         body: JSON.stringify(data),
         headers: { "Content-Type": "application/json" },
