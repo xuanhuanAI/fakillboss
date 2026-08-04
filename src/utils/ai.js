@@ -11,6 +11,7 @@ export async function loadAIConfig() {
         apiKey: data.apiKey,
         model: data.model || "deepseek-chat",
         baseUrl: data.baseUrl || "https://api.deepseek.com/v1",
+        provider: data.provider || "deepseek",
       };
       return true;
     }
@@ -23,6 +24,7 @@ export async function loadAIConfig() {
         apiKey: data.apiKey,
         model: data.model || "deepseek-chat",
         baseUrl: data.baseUrl || "https://api.deepseek.com/v1",
+        provider: data.provider || "deepseek",
       };
       localStorage.setItem("ai_config", JSON.stringify(data));
       return true;
@@ -36,6 +38,7 @@ export function setAIConfig(config) { aiConfig = config; }
 
 export const AI_PROVIDERS = [
   { name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", models: ["deepseek-chat", "deepseek-reasoner"] },
+  { name: "智谱GLM（联网搜索）", baseUrl: "https://open.bigmodel.cn/api/paas/v4", models: ["glm-4-flash", "glm-4-air", "glm-4-plus"] },
   { name: "OpenAI", baseUrl: "https://api.openai.com/v1", models: ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"] },
 ];
 
@@ -51,20 +54,28 @@ async function fetchWithTimeout(url, options, timeoutMs = 8000) {
   }
 }
 
-async function callAI(prompt) {
+async function callAI(prompt, options = {}) {
   if (!aiConfig) { const ok = await loadAIConfig(); if (!ok) return null; }
+  const body = {
+    model: aiConfig.model, temperature: 0.1,
+    messages: [
+      { role: "system", content: "你是一个校验专家。只输出 JSON，不要附加其他内容。" },
+      { role: "user", content: prompt },
+    ],
+  };
+  // 智谱联网搜索模式：启用 web_search 工具
+  if (aiConfig.provider === "zhipu" && options.searchQuery) {
+    body.tools = [
+      { type: "web_search", web_search: { enable: true, search_query: options.searchQuery } },
+    ];
+  }
+  const timeoutMs = options.searchQuery ? 25000 : 8000;
   try {
     const response = await fetchWithTimeout(aiConfig.baseUrl + "/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + aiConfig.apiKey },
-      body: JSON.stringify({
-        model: aiConfig.model, temperature: 0.1,
-        messages: [
-          { role: "system", content: "你是一个校验专家。只输出 JSON，不要附加其他内容。" },
-          { role: "user", content: prompt },
-        ],
-      }),
-    }, 8000);
+      body: JSON.stringify(body),
+    }, timeoutMs);
     if (!response.ok) return null;
     const result = await response.json();
     const text = result.choices[0].message.content;
@@ -175,7 +186,12 @@ export async function validateWithAI(company, title) {
   if (!/[\u4e00-\u9fa5A-Za-z]/.test(t)) return { valid: false, message: "岗位名称格式不正确" };
   if (t.length > 30) return { valid: false, message: "岗位名称过长，请检查是否填写正确" };
 
-  // ===== AI 校验（DeepSeek） =====
+  // ===== AI 校验 =====
+  // 联网搜索模式（智谱GLM）：真实搜索公司名，搜到=真实，搜不到=存疑
+  if (aiConfig && aiConfig.provider === "zhipu") {
+    return await validateCompanyWithSearch(c, t);
+  }
+  // 离线模式（DeepSeek/OpenAI）：按命名规范判断
   try {
     const result = await callAI('你是公司信息审核助手。你无法联网查询工商注册库，因此不要以"未查询到"为由拒绝。\n请根据以下规则判断：\n1. 公司名称是否符合中国工商注册命名规范（行政区划+字号+行业+组织形式，如“郑州天桥电子商务有限公司”）。\n2. 公司名称是否完整（必须含“有限公司/集团/工作室/中心/厂”等组织形式字样）。\n3. 岗位名称是否像真实的职业/岗位（如“前端开发工程师”“销售经理”），而不是乱填（如“打酱油”“睡觉”“王八”等）。\n4. 是否有明显虚假、低俗、恶意或广告性质的内容。\n只要名称规范、岗位合理，即使你不认识这家公司，也应判定为有效。\n公司: ' + c + '\n岗位: ' + t + '\n返回JSON: { valid: true/false, reason: "简短理由" }');
     if (result && result.valid === false) {
@@ -183,4 +199,19 @@ export async function validateWithAI(company, title) {
     }
   } catch (e) {}
   return { valid: true, message: "" };
+}
+
+/** 联网搜索校验公司真实性（智谱GLM web_search） */
+async function validateCompanyWithSearch(company, title) {
+  try {
+    const result = await callAI('你是一个企业信息审核助手。请根据刚才联网搜索到的结果判断：\n1. 是否搜索到了与公司名一致的真实信息（官网、新闻报道、招聘信息、工商记录、企业查询平台等）。\n2. 只要搜索到了该公司的相关公开信息 → valid: true。\n3. 完全没有搜索到该公司的任何信息 → valid: false，reason 写“未搜索到该公司的公开信息，可能为虚构”。\n4. 同时判断岗位名称是否像真实职业（如“前端开发工程师”），不是乱填。\n公司: ' + company + '\n岗位: ' + title + '\n返回JSON: { valid: true/false, reason: "简短理由" }', { searchQuery: company });
+    if (result && result.valid === true) return { valid: true, message: "" };
+    if (result && result.valid === false) {
+      return { valid: false, message: result.reason || "未搜索到该公司的公开信息" };
+    }
+    return { valid: true, message: "" };
+  } catch (e) {
+    console.warn("联网校验失败:", e.message);
+    return { valid: true, message: "" };
+  }
 }

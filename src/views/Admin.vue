@@ -70,7 +70,8 @@
           <form @submit.prevent="saveAIConfig">
             <div class="form-group"><label class="form-label">AI 提供商</label>
               <select v-model="aiForm.provider" class="form-select" @change="onProviderChange">
-                <option value="deepseek">DeepSeek（推荐）</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="zhipu">智谱GLM（联网搜索，免费）</option>
                 <option value="openai">OpenAI</option>
               </select>
             </div>
@@ -180,6 +181,7 @@ const aiError = ref("")
 
 const AI_PROVIDERS = {
   deepseek: { baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  zhipu: { baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
   openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
 }
 function onProviderChange() { const p = AI_PROVIDERS[aiForm.value.provider]; if (p) { aiForm.value.baseUrl = p.baseUrl; aiForm.value.model = p.model } }
