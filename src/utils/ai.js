@@ -126,22 +126,60 @@ export function validatePasswordStrength(pwd) {
   };
 }
 
-/** 校验公司名和职位（宽松模式：AI无法查工商库，只拦截明显乱填） */
+/** 常见公司组织形式后缀 */
+const COMPANY_SUFFIXES = [
+  "有限责任公司", "股份有限公司", "有限公司", "集团", "公司",
+  "工作室", "中心", "工厂", "厂", "事务所", "商行",
+  "合作社", "研究院", "研究所", "医院", "学校", "银行",
+  "证券", "保险", "基金会", "协会", "商会",
+];
+
+/** 明显乱填/测试关键词 */
+const FAKE_WORDS = [
+  "测试", "演示", "示例", "随便", "某某", "哈哈", "呵呵",
+  "测试测试", "test", "demo", "假的", "虚构", "乱写",
+  "阿斯顿", "撒大声地", "asdf", "qwerty", "abc", "123",
+];
+
+/** 校验公司名和职位：本地规则 + AI 双重校验 */
 export async function validateWithAI(company, title) {
-  // 本地基础检查：非空、不含乱码符号
   const c = (company || "").trim();
   const t = (title || "").trim();
-  if (!c || c.length < 2 || /[\u0000-\u001f\ufffd]/.test(c)) return { valid: false, message: "公司名称格式不正确" };
-  if (!t || t.length < 1 || /[\u0000-\u001f\ufffd]/.test(t)) return { valid: false, message: "岗位名称格式不正确" };
-  // 明显乱填的拦截
-  if (/^[a-zA-Z0-9]{1,3}$/.test(c)) return { valid: false, message: "公司名称过于简短，请填写完整名称" };
-  if (!/[\u4e00-\u9fa5A-Za-z0-9]/.test(t)) return { valid: false, message: "岗位名称格式不正确" };
 
+  // ===== 本地规则校验 =====
+  if (!c) return { valid: false, message: "请输入公司名称" };
+  if (!t) return { valid: false, message: "请输入岗位名称" };
+  if (c.length < 4) return { valid: false, message: "公司名称过短，请填写完整工商注册名称" };
+  if (c.length > 50) return { valid: false, message: "公司名称过长，请检查是否填写正确" };
+
+  // 必须包含常见组织形式后缀
+  const hasSuffix = COMPANY_SUFFIXES.some((s) => c.includes(s));
+  if (!hasSuffix) {
+    return { valid: false, message: "公司名称格式不规范，请填写包含“有限公司/集团/工作室/中心”等字样的完整名称" };
+  }
+
+  // 拦截明显乱填词
+  const lowerC = c.toLowerCase();
+  for (const w of FAKE_WORDS) {
+    if (lowerC.includes(w.toLowerCase())) {
+      return { valid: false, message: "公司名称包含疑似测试或乱填内容，请核实后重新填写" };
+    }
+  }
+  for (const w of FAKE_WORDS) {
+    if (t.toLowerCase().includes(w.toLowerCase())) {
+      return { valid: false, message: "岗位名称包含疑似测试或乱填内容，请核实后重新填写" };
+    }
+  }
+
+  // 岗位名不能是纯叠字或无意义字符
+  if (!/[\u4e00-\u9fa5A-Za-z]/.test(t)) return { valid: false, message: "岗位名称格式不正确" };
+  if (t.length > 30) return { valid: false, message: "岗位名称过长，请检查是否填写正确" };
+
+  // ===== AI 校验（DeepSeek） =====
   try {
-    const result = await callAI('你是信息审核助手。注意：你无法联网查询工商注册信息，因此不要以"未查询到"为由拒绝。\n请只拦截明显虚假、乱填或恶意信息（例如"abc公司"、"测试测试"、表情符号、无意义字符等）。\n对于正常的中文公司名和岗位名，即使你不认识，也应判定为有效。\n公司: ' + c + '  岗位: ' + t + '\n返回JSON: { valid: true/false, reason: "" }');
+    const result = await callAI('你是公司信息审核助手。你无法联网查询工商注册库，因此不要以"未查询到"为由拒绝。\n请根据以下规则判断：\n1. 公司名称是否符合中国工商注册命名规范（行政区划+字号+行业+组织形式，如“郑州天桥电子商务有限公司”）。\n2. 公司名称是否完整（必须含“有限公司/集团/工作室/中心/厂”等组织形式字样）。\n3. 岗位名称是否像真实的职业/岗位（如“前端开发工程师”“销售经理”），而不是乱填（如“打酱油”“睡觉”“王八”等）。\n4. 是否有明显虚假、低俗、恶意或广告性质的内容。\n只要名称规范、岗位合理，即使你不认识这家公司，也应判定为有效。\n公司: ' + c + '\n岗位: ' + t + '\n返回JSON: { valid: true/false, reason: "简短理由" }');
     if (result && result.valid === false) {
-      let msg = result.reason || "信息格式可疑";
-      return { valid: false, message: msg };
+      return { valid: false, message: result.reason || "信息疑似不真实" };
     }
   } catch (e) {}
   return { valid: true, message: "" };
