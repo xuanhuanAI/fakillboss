@@ -205,11 +205,8 @@ export async function validateWithAI(company, title) {
   if (c.length < 4) return { valid: false, message: "公司名称过短，请填写完整工商注册名称" };
   if (c.length > 50) return { valid: false, message: "公司名称过长，请检查是否填写正确" };
 
-  // 必须包含常见组织形式后缀
+  // 常见组织形式后缀（软检查：不拦截，仅提示 AI 注意）
   const hasSuffix = COMPANY_SUFFIXES.some((s) => c.includes(s));
-  if (!hasSuffix) {
-    return { valid: false, message: "公司名称格式不规范，请填写包含“有限公司/集团/工作室/中心”等字样的完整名称" };
-  }
 
   // 拦截明显乱填词
   const lowerC = c.toLowerCase();
@@ -239,7 +236,8 @@ export async function validateWithAI(company, title) {
     // 把搜索结果喂给 AI 判断
     const snippets = searchResults.slice(0, 5).map((r, i) => (i + 1) + ". " + r.title + " - " + r.url + (r.snippet ? " | " + r.snippet : "")).join("\n");
     try {
-      const result = await callAI('你是企业信息审核助手。以下是搜索引擎返回的“' + c + '”相关结果：\n' + snippets + '\n请判断：\n1. 搜索结果中是否有与公司名匹配的真实信息（官网、招聘、新闻、工商记录、企业查询平台等）。\n2. 如果搜索到了该公司信息 → valid: true。\n3. 如果搜索结果明显不相关或全是无关内容 → valid: false。\n4. 岗位名称“' + t + '”是否像真实职业。\n返回JSON: { valid: true/false, reason: "简短理由" }');
+      const suffixNote = hasSuffix ? "该公司名称包含组织形式字样。" : "注意：该公司名称未包含“有限公司/集团/工作室”等字样，可能是简称或个体户，请结合搜索结果综合判断，不要仅因格式而拒绝。";
+      const result = await callAI('你是企业信息审核助手。以下是搜索引擎返回的“' + c + '”相关结果：\n' + snippets + '\n' + suffixNote + '\n请判断：\n1. 搜索结果中是否有与公司名匹配的真实信息（官网、招聘、新闻、工商记录、企业查询平台等）。\n2. 如果搜索到了该公司信息 → valid: true。\n3. 如果搜索结果明显不相关或全是无关内容 → valid: false。\n4. 岗位名称“' + t + '”是否像真实职业。\n返回JSON: { valid: true/false, reason: "简短理由" }');
       if (result && result.valid === false) {
         return { valid: false, message: result.reason || "搜索结果不相关，该公司可能不存在" };
       }
@@ -249,7 +247,8 @@ export async function validateWithAI(company, title) {
 
   // 离线模式（搜索失败时的回退）：按命名规范判断
   try {
-    const result = await callAI('你是公司信息审核助手。你无法联网查询工商注册库，因此不要以"未查询到"为由拒绝。\n请根据以下规则判断：\n1. 公司名称是否符合中国工商注册命名规范（行政区划+字号+行业+组织形式，如“郑州天桥电子商务有限公司”）。\n2. 公司名称是否完整（必须含“有限公司/集团/工作室/中心/厂”等组织形式字样）。\n3. 岗位名称是否像真实的职业/岗位（如“前端开发工程师”“销售经理”），而不是乱填（如“打酱油”“睡觉”“王八”等）。\n4. 是否有明显虚假、低俗、恶意或广告性质的内容。\n只要名称规范、岗位合理，即使你不认识这家公司，也应判定为有效。\n公司: ' + c + '\n岗位: ' + t + '\n返回JSON: { valid: true/false, reason: "简短理由" }');
+    const suffixNote2 = hasSuffix ? "" : "（该公司名称未含组织形式字样，可能是简称或个体户，请勿仅因格式拒绝）";
+    const result = await callAI('你是公司信息审核助手。你无法联网查询工商注册库，因此不要以"未查询到"为由拒绝。\n请根据以下规则判断：\n1. 公司名称是否符合中国工商注册命名规范（行政区划+字号+行业+组织形式，如“郑州天桥电子商务有限公司”）。\n2. 公司名称是否完整。' + suffixNote2 + '\n3. 岗位名称是否像真实的职业/岗位（如“前端开发工程师”“销售经理”），而不是乱填（如“打酱油”“睡觉”“王八”等）。\n4. 是否有明显虚假、低俗、恶意或广告性质的内容。\n只要名称规范、岗位合理，即使你不认识这家公司，也应判定为有效。\n公司: ' + c + '\n岗位: ' + t + '\n返回JSON: { valid: true/false, reason: "简短理由" }');
     if (result && result.valid === false) {
       return { valid: false, message: result.reason || "信息疑似不真实" };
     }
