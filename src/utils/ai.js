@@ -126,15 +126,21 @@ export function validatePasswordStrength(pwd) {
   };
 }
 
-/** 校验公司名和职位 */
+/** 校验公司名和职位（宽松模式：AI无法查工商库，只拦截明显乱填） */
 export async function validateWithAI(company, title) {
-  const prompt = '请判断以下公司名和岗位是否真实存在：\n公司: ' + company + '  岗位: ' + title + '\n返回JSON: { valid: true/false, companyValid: true/false, titleValid: true/false, similarCompany: "", similarTitle: "", reason: "" }';
+  // 本地基础检查：非空、不含乱码符号
+  const c = (company || "").trim();
+  const t = (title || "").trim();
+  if (!c || c.length < 2 || /[\u0000-\u001f\ufffd]/.test(c)) return { valid: false, message: "公司名称格式不正确" };
+  if (!t || t.length < 1 || /[\u0000-\u001f\ufffd]/.test(t)) return { valid: false, message: "岗位名称格式不正确" };
+  // 明显乱填的拦截
+  if (/^[a-zA-Z0-9]{1,3}$/.test(c)) return { valid: false, message: "公司名称过于简短，请填写完整名称" };
+  if (!/[\u4e00-\u9fa5A-Za-z0-9]/.test(t)) return { valid: false, message: "岗位名称格式不正确" };
+
   try {
-    const result = await callAI(prompt);
-    if (result && !result.valid) {
-      let msg = result.reason || "信息可能不真实";
-      if (result.similarCompany) msg += "。你是否想找: " + result.similarCompany;
-      if (result.similarTitle) msg += " / 职位: " + result.similarTitle;
+    const result = await callAI('你是信息审核助手。注意：你无法联网查询工商注册信息，因此不要以"未查询到"为由拒绝。\n请只拦截明显虚假、乱填或恶意信息（例如"abc公司"、"测试测试"、表情符号、无意义字符等）。\n对于正常的中文公司名和岗位名，即使你不认识，也应判定为有效。\n公司: ' + c + '  岗位: ' + t + '\n返回JSON: { valid: true/false, reason: "" }');
+    if (result && result.valid === false) {
+      let msg = result.reason || "信息格式可疑";
       return { valid: false, message: msg };
     }
   } catch (e) {}

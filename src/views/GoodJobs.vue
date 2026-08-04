@@ -79,10 +79,13 @@ async function submitJob(){
   aiChecking.value = true; publishError.value = "";
   try {
     const aiResult = await validateWithAI(form.value.company, form.value.title);
-    if (!aiResult.valid) { publishError.value = "🤖 AI校验未通过: " + aiResult.message; aiChecking.value = false; return; }
+    if (!aiResult.valid) { aiWarning.value = "AI提示: " + aiResult.message; aiChecking.value = false; return; }
   } catch(e) { console.warn("AI校验失败，放行:", e.message); }
   aiChecking.value = false;
-
+  await doPublish();
+}
+async function forcePublish(){ aiWarning.value = ""; await doPublish(); }
+async function doPublish() {
   publishing.value = true;
   try {
     await appStore.addJob('good', { title: form.value.title, company: form.value.company, description: form.value.description, salary: form.value.salary, author: appStore.currentUser.nickname||appStore.currentUser.username, authorId: appStore.currentUser.username });
